@@ -1,6 +1,12 @@
-// Sends via Resend today. Swappable: add another branch here (checking for a
-// different env var) and nothing on the frontend needs to change — same
-// pattern as the AI provider selection in api/claude.js.
+// OPTIONAL direct email sending. Nothing in the app needs this: by default "Send to customer" opens the
+// advisor's own email app (a mailto: link) — free, no setup, no account.
+//
+// Only if you later want Resolve to send on its own: add RESEND_API_KEY (and EMAIL_FROM) in
+// Vercel → Settings → Environment Variables and redeploy. Until then GET /api/send-email says
+// { configured: false } and the app keeps the "Send directly" option hidden.
+//
+// Swappable: add another branch here (checking for a different env var) and nothing on the frontend
+// needs to change — same idea as the AI provider selection in api/claude.js.
 
 async function sendViaResend(apiKey, { to, subject, body }) {
   const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
@@ -30,21 +36,31 @@ async function sendViaResend(apiKey, { to, subject, body }) {
           "This account can only send to its own address until a sending domain is verified. Add one at resend.com/domains, or send a test to the address you signed up with.",
       };
     }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, status: res.status, code: "invalid_key", message: `The email service rejected the key${message ? ` (“${message}”)` : ""}. Check RESEND_API_KEY in Vercel.` };
+    }
     return { ok: false, status: res.status, code: "send_failed", message: message || "Couldn't send the email." };
   }
   return { ok: true, id: data.id };
 }
 
 export default async function handler(req, res) {
+  const resendKey = (process.env.RESEND_API_KEY || "").trim();
+
+  if (req.method === "GET") {
+    res.status(200).json({ configured: Boolean(resendKey) });
+    return;
+  }
+
   if (req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
     res.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });
     return;
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
-    res.status(500).json({
-      error: "No email service is configured yet. Add RESEND_API_KEY in your Vercel project's Environment Variables, then redeploy.",
+    res.status(503).json({
+      error: "Direct sending isn't set up (it's optional). Use “Open in email app”, or add RESEND_API_KEY in your Vercel project's Environment Variables and redeploy.",
       code: "missing_email_key",
     });
     return;

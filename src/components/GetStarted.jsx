@@ -1,22 +1,25 @@
 import { colors } from "../lib/colors.js";
 import { Card } from "./ui.jsx";
+import { CaseCard } from "./CaseListView.jsx";
 
 const STEPS = [
   {
     title: "Get cases",
-    description: "Paste in a customer's message to start a new case, with any order number or account details you already have.",
+    description: "Pull the next customer case, or paste one in with any order number, SKU, tracking details or photos the customer sent.",
   },
   {
     title: "Get resolutions",
-    description: "Chat with the assistant to draft a reply grounded in your knowledge base, then refine it until it's ready.",
+    description: "The assistant reads the case and drafts a reply from your knowledge base. Chat with it to refine the draft.",
   },
   {
     title: "Forward to customers",
-    description: "Copy the finished reply and send it to your customer through whatever channel they reached out on.",
+    description: "Send the finished reply by email, WhatsApp or text message, then track the case by status.",
   },
 ];
 
-export default function GetStarted({ onStart }) {
+export default function GetStarted({ onStart, searching = false, cases = [], onSelectCase, onSeeHistory }) {
+  const recent = cases.slice(0, 3);
+
   return (
     <div>
       <div className="flex flex-col gap-[16px] mb-[40px]">
@@ -36,9 +39,25 @@ export default function GetStarted({ onStart }) {
         ))}
       </div>
 
-      <button onClick={onStart} className="text-sm font-normal underline mt-6" style={{ color: colors.ink }}>
-        Get your first case →
+      <button onClick={onStart} disabled={searching} className="text-sm font-normal underline mt-6 disabled:no-underline disabled:opacity-60" style={{ color: colors.ink }} data-testid="get-first-case">
+        {searching ? "Searching for a case…" : cases.length ? "Get the next case →" : "Get your first case →"}
       </button>
+
+      {recent.length > 0 && (
+        <div className="mt-10 max-w-[640px]" data-testid="recent-history">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-medium" style={{ color: colors.gray }}>Recent history</p>
+            <button onClick={onSeeHistory} className="text-xs font-medium underline" style={{ color: colors.ink }}>
+              See all history →
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {recent.map((c) => (
+              <CaseCard key={c.id} item={c} selected={false} onClick={() => onSelectCase && onSelectCase(c.id)} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

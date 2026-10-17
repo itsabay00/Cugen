@@ -405,6 +405,16 @@ function describeNetworkError(err) {
 
 /* ───────────────────────────── calling a provider ───────────────────────────── */
 
+// Some models (DeepSeek-R1 style) write their thinking inside <think>…</think> before the answer. The advisor
+// should only see the answer — and a reply that is nothing but unfinished thinking counts as empty.
+function stripReasoning(text) {
+  return String(text || "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^[\s\S]*?<\/think>/i, "")
+    .replace(/<think>[\s\S]*$/i, "")
+    .trim();
+}
+
 async function postJson(url, headers, body, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -473,7 +483,7 @@ async function callOpenAIStyle(p, model, usedVision, payload, timeoutMs) {
   const choice = (Array.isArray(reply.data.choices) ? reply.data.choices[0] : null) || {};
   let content = choice.message && choice.message.content;
   if (Array.isArray(content)) content = content.map((part) => (part && typeof part.text === "string" ? part.text : "")).join("");
-  const text = typeof content === "string" ? content.trim() : "";
+  const text = typeof content === "string" ? stripReasoning(content) : "";
   if (!text) {
     const blocked = choice.finish_reason === "content_filter" || (choice.message && choice.message.refusal);
     return failure(p, model, blocked ? "content_blocked" : "empty", { detail: blocked && choice.message && choice.message.refusal ? tidy(choice.message.refusal) : "" });
